@@ -46,20 +46,34 @@ small.muted{color:var(--muted)} .badge{display:inline-block;background:var(--pil
 </header>
 
 <main>
-  <section class="toolbar">
-    <div class="px">
-      <div class="flex">
-        <label><input type="checkbox" class="set" value="child_with_ref.json" checked/> 유년부</label>
-        <label><input type="checkbox" class="set" value="elementary_with_ref.json" checked/> 초등부</label>
-        <label><input type="checkbox" class="set" value="youth_with_ref.json" checked/> 청소년부</label>
-        <label><input type="checkbox" class="set" value="adult_with_ref.json" checked/> 장년부</label>
-      </div>
-      <div class="flex" style="margin-top:6px">
-        <button id="loadBtn">불러오기</button>
-        <input id="fileInput" type="file" accept=".json" multiple class="hidden"/>
-        <small class="muted">원하는 문제를 선택하고 불러오기를 클릭하세요</small>
-      </div>
+  
+<section class="toolbar">
+  <div class="px" style="flex:1 1 100%">
+    <div class="flex">
+      <label><input type="checkbox" class="set" value="child_with_ref.json" checked/> 유년부</label>
+      <label><input type="checkbox" class="set" value="elementary_with_ref.json" checked/> 초등부</label>
+      <label><input type="checkbox" class="set" value="youth_with_ref.json" checked/> 청소년부</label>
+      <label><input type="checkbox" class="set" value="adult_with_ref.json" checked/> 장년부</label>
     </div>
+    <div class="flex" style="margin-top:6px">
+      <button id="loadBtn">불러오기</button>
+      <input id="fileInput" type="file" accept=".json" multiple class="hidden"/>
+      <small class="muted">원하는 문제를 선택하고 불러오기를 클릭하세요</small>
+    </div>
+  </div>
+
+  <div class="flex" style="flex:1 1 100%;gap:12px;align-items:center">
+    <label class="muted" style="white-space:nowrap">출제</label>
+    <label><input type="radio" name="mode" id="modeRandom" value="random" checked/> 랜덤</label>
+    <label><input type="radio" name="mode" id="modeSeq" value="seq"/> 순차</label>
+    <small class="muted" id="modeHint">· 순차는 하나의 부서만 선택했을 때 사용 가능합니다.</small>
+    <div class="flex" style="margin-left:auto;gap:6px;align-items:center">
+      <label for="seqStart" class="muted">시작 번호</label>
+      <input id="seqStart" type="number" min="1" value="1" style="width:80px" disabled/>
+    </div>
+  </div>
+
+  <div class="flex" style="flex:1 1 100%;gap:8px;margin-top:4px">
     <button id="startBtn" disabled>학습시작</button>
     <button id="stopBtn" class="hidden">그만하기</button>
     <button id="nextBtn" class="hidden">다음(Enter)</button>
@@ -67,7 +81,9 @@ small.muted{color:var(--muted)} .badge{display:inline-block;background:var(--pil
     <button id="listBtn">문항목록</button>
     <button id="exportBtn">진행백업</button>
     <button id="resetBtn">진행초기화</button>
-  </section>
+  </div>
+</section>
+
 
   <section id="quiz" class="card hidden">
     <div class="row" style="justify-content:space-between;align-items:center">
@@ -83,7 +99,7 @@ small.muted{color:var(--muted)} .badge{display:inline-block;background:var(--pil
     <div id="result" class="muted"></div>
   </section>
 
-  <section id="list" class="card hidden">
+<section id="list" class="card hidden">
     <h3>문항 목록</h3>
     <div id="items"></div>
   </section>
@@ -97,6 +113,9 @@ small.muted{color:var(--muted)} .badge{display:inline-block;background:var(--pil
 const KEY_SRS="mcq.srs.v4";
 const KEY_STATS="mcq.stats.v4";
 let Q=[], SRC=[], SOURCE="mix";
+let MODE="random"; // "random" or "seq"
+let ORDER=[], ORDER_PTR=0; // for seq mode
+
 let SRS = JSON.parse(localStorage.getItem(KEY_SRS) || "{}");
 let STATS = JSON.parse(localStorage.getItem(KEY_STATS) || "{}");
 const $ = (id)=>document.getElementById(id);
@@ -134,6 +153,10 @@ function weightOf(i){
 }
 function pick(){
   if(Q.length===0) return -1;
+  if(MODE==="seq"){
+    if(ORDER_PTR>=ORDER.length) ORDER_PTR=0; // loop around
+    return ORDER[ORDER_PTR++];
+  }
   const w = Q.map((_,i)=>weightOf(i)); const sum=w.reduce((a,b)=>a+b,0)||1; let r=Math.random()*sum;
   for(let i=0;i<Q.length;i++){ r-=w[i]; if(r<=0) return i; }
   return Q.length-1;
@@ -171,7 +194,7 @@ async function loadSelected(){
     updateHeader();
     $("startBtn").disabled = (Q.length===0);
     showList();
-    alert(`불러오기 완료: ${Q.length}문항 · ${srcinfo.join(", ")}`);
+    updateModeAvailability(); alert(`불러오기 완료: ${Q.length}문항 · ${srcinfo.join(", ")}`);
   }catch(e){
     alert("불러오기 실패: "+e.message + "\\n파일 선택으로 시도합니다.");
     $("fileInput").classList.remove("hidden");
@@ -182,6 +205,21 @@ async function loadSelected(){
 }
 
 $("loadBtn").onclick=loadSelected;
+// Mode UI logic
+const modeRandom=$("modeRandom"), modeSeq=$("modeSeq"), seqStart=$("seqStart");
+function updateModeAvailability(){
+  const selectedSets = [...document.querySelectorAll(".set:checked")].length;
+  const allowSeq = (selectedSets===1);
+  modeSeq.disabled = !allowSeq;
+  seqStart.disabled = !(allowSeq && modeSeq.checked);
+  $("modeHint").textContent = allowSeq ? "순차 사용 가능" : "순차는 하나의 부서만 사용 가능";
+  if(!allowSeq){ modeRandom.checked=true; }
+}
+document.querySelectorAll(".set").forEach(chk=> chk.addEventListener("change", updateModeAvailability));
+modeRandom.addEventListener("change", ()=>{ seqStart.disabled = true; });
+modeSeq.addEventListener("change", ()=>{ updateModeAvailability(); });
+updateModeAvailability();
+
 $("fileInput").addEventListener("change", async ()=>{
   $("startBtn").disabled = true;
   try{
@@ -194,7 +232,7 @@ $("fileInput").addEventListener("change", async ()=>{
     }
     if(merged.length===0) throw new Error("선택한 파일에서 문항을 찾을 수 없습니다.");
     Q = merged; SRC = srcinfo; SOURCE="mix-local"; updateHeader(); $("startBtn").disabled=false; showList();
-    alert(`불러오기 완료(로컬): ${Q.length}문항 · ${srcinfo.join(", ")}`);
+    updateModeAvailability(); alert(`불러오기 완료(로컬): ${Q.length}문항 · ${srcinfo.join(", ")}`);
   }catch(e){
     alert("로컬 불러오기 실패: "+e.message);
   }
@@ -218,7 +256,24 @@ function renderItem(i){
 let running=false, current=-1, answered=false, waitingNext=false, revealMode=false;
 const stem=$("stem"), choices=$("choices"), result=$("result"), refv=$("refView"), level=$("levelInfo"), srcpill=$("sourceInfo");
 
-function start(){ if(Q.length===0) return; running=true; $("startBtn").classList.add("hidden"); $("stopBtn").classList.remove("hidden"); show(quiz); next(); }
+function start(){
+  if(Q.length===0) return;
+  // Determine mode by radio buttons
+  MODE = (document.getElementById("modeSeq").checked ? "seq" : "random");
+  if(MODE==="seq"){
+    const startNum = Math.max(1, Number(document.getElementById("seqStart").value)||1);
+    // Build sequential order from startNum (1-based to 0-based)
+    ORDER = [];
+    for(let i=startNum-1;i<Q.length;i++) ORDER.push(i);
+    for(let i=0;i<startNum-1 && i<Q.length;i++) ORDER.push(i);
+    ORDER_PTR = 0;
+  }
+  running=true;
+  $("startBtn").classList.add("hidden");
+  $("stopBtn").classList.remove("hidden");
+  show(quiz);
+  next();
+}
 function stop(){ running=false; $("stopBtn").classList.add("hidden"); $("startBtn").classList.remove("hidden"); show(null); }
 
 function sampleChoices(it){
