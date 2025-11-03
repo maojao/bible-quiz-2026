@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>2026 성경고사 객관식 트레이너 · 유/초/청/장 혼합 출제</title>
+<style>
+:root{--bg:#0b0f14;--fg:#e9eef5;--muted:#94a3b8;--acc:#68b5ff;--card:#121825;--input:#0e1420;--ok:#22c55e;--warn:#f59e0b;--err:#ef4444;--border:#1f2a3a;--pill:#1a2233}
+@media (prefers-color-scheme:light){
+  :root{--bg:#f7fafc;--fg:#0b1220;--muted:#475569;--acc:#2563eb;--card:#ffffff;--input:#f1f5f9;--ok:#16a34a;--warn:#d97706;--err:#dc2626;--border:#e2e8f0;--pill:#eef2f7}
+}
+*{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Noto Sans KR,Apple SD Gothic Neo,sans-serif}
+header,main,footer{max-width:980px;margin:0 auto;padding:16px}
+h1{font-size:1.6rem;margin:8px 0 4px}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0 16px}
+button{background:var(--pill);color:var(--fg);border:1px solid var(--border);padding:8px 12px;border-radius:10px;cursor:pointer}
+button:hover{border-color:var(--acc)}
+select,input,label{background:var(--input);color:var(--fg);border:1px solid var(--border);padding:8px 10px;border-radius:10px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px}
+small.muted{color:var(--muted)} .badge{display:inline-block;background:var(--pill);border:1px solid var(--border);border-radius:999px;padding:2px 8px;font-size:.8rem;color:var(--muted)}
+.ok{color:var(--ok)}.warn{color:var(--warn)}.err{color:var(--err)}
+.kbd{background:var(--pill);border:1px solid var(--border);padding:2px 6px;border-radius:6px;color:var(--muted)}
+.choice{border:1px solid var(--border);border-radius:10px;padding:10px;margin:8px 0;cursor:pointer}
+.choice:hover{border-color:var(--acc)}
+.choice.correct{border-color:var(--ok);background:rgba(34,197,94,.08)}
+.choice.wrong{border-color:var(--err);background:rgba(239,68,68,.08)}
+.hidden{display:none}
+.flex{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.px{padding:4px 8px;border-radius:8px;border:1px solid var(--border);background:var(--pill)}
+.srcpill{font-size:.8rem;color:var(--muted)}
+#result{min-height:1.2em}
+.code{font-family:ui-monospace,Menlo,Consolas,monospace;background:var(--pill);padding:2px 6px;border-radius:6px;border:1px solid var(--border)}
+</style>
+</head>
+<body>
+<header class="row" style="justify-content:space-between">
+  <div>
+    <h1>2026 성경고사 객관식 트레이너</h1>
+    <small class="muted">유/초/청/장 다중 선택 · 혼합 출제 · GitHub Pages/로컬 모두 가능</small>
+  </div>
+  <div>
+    <span class="badge" id="statSeen">문항 0</span>
+    <span class="badge" id="statScore">정답 0 · 오답 0</span>
+  </div>
+</header>
+
+<main>
+  <section class="toolbar">
+    <div class="px">
+      <div class="flex">
+        <label><input type="checkbox" class="set" value="child_with_ref.json" checked/> 유년부</label>
+        <label><input type="checkbox" class="set" value="elementary_with_ref.json" checked/> 초등부</label>
+        <label><input type="checkbox" class="set" value="youth_with_ref.json" checked/> 청소년부</label>
+        <label><input type="checkbox" class="set" value="adult_with_ref.json" checked/> 장년부</label>
+      </div>
+      <div class="flex" style="margin-top:6px">
+        <button id="loadBtn">불러오기</button>
+        <input id="fileInput" type="file" accept=".json" multiple class="hidden"/>
+        <small class="muted">같은 폴더의 *_with_ref.json을 fetch합니다. 로컬(file://)에서 막히면 파일 선택을 사용하세요.</small>
+      </div>
+    </div>
+    <button id="startBtn" disabled>학습 시작</button>
+    <button id="stopBtn" class="hidden">그만하기</button>
+    <button id="nextBtn" class="hidden">다음(Enter)</button>
+    <button id="revealBtn" class="hidden">정답 보기</button>
+    <button id="listBtn">문항 목록</button>
+    <button id="exportBtn">진행 백업(JSON)</button>
+    <button id="resetBtn">진행 초기화</button>
+  </section>
+
+  <section id="quiz" class="card hidden">
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <div class="flex">
+        <strong>장절:</strong> <span id="refView" class="code"></span>
+        <span class="badge" id="levelInfo"></span>
+        <span class="badge srcpill" id="sourceInfo" title="데이터 출처"></span>
+      </div>
+      <div><small class="muted">숫자키 1–4, <span class="kbd">Enter</span> 진행</small></div>
+    </div>
+    <h3 id="stem" style="margin-top:8px"></h3>
+    <div id="choices"></div>
+    <div id="result" class="muted"></div>
+  </section>
+
+  <section id="list" class="card hidden">
+    <h3>문항 목록</h3>
+    <div id="items"></div>
+  </section>
+</main>
+
+<footer>
+  <small class="muted">문항: 외부 JSON 병합(유/초/청/장) · 진행/통계: localStorage (mcq.srs.v4 / mcq.stats.v4)</small>
+</footer>
+
+<script>
+const KEY_SRS="mcq.srs.v4";
+const KEY_STATS="mcq.stats.v4";
+let Q=[], SRC=[], SOURCE="mix";
+let SRS = JSON.parse(localStorage.getItem(KEY_SRS) || "{}");
+let STATS = JSON.parse(localStorage.getItem(KEY_STATS) || "{}");
+const $ = (id)=>document.getElementById(id);
+const MAX_LEVEL=3, EF_MIN=1.3;
+function today(){ return new Date().toISOString().slice(0,10); }
+function save(){ localStorage.setItem(KEY_SRS, JSON.stringify(SRS)); localStorage.setItem(KEY_STATS, JSON.stringify(STATS)); }
+function srsKey(i){ return SOURCE+":"+i; }
+function srsFor(i){ return SRS[srsKey(i)] || {level:0, ef:2.5, interval:0, due:today()}; }
+function srsUpdate(i, q){
+  const k=srsKey(i); const s=srsFor(i);
+  s.ef = (s.ef||2.5) + (0.1 - (5-q)*(0.08 + (5-q)*0.02));
+  if(s.ef < EF_MIN) s.ef = EF_MIN;
+  if(q < 4){ s.interval = 0; s.due = today(); s.level = Math.max(0, (s.level||0) - (q===2?1:0)); }
+  else{
+    if(!s.interval || s.interval===0) s.interval = 1;
+    else if(s.interval===1) s.interval = 3;
+    else s.interval = Math.round(s.interval * s.ef);
+    const d = new Date(); d.setDate(d.getDate() + s.interval); s.due = d.toISOString().slice(0,10);
+    s.level = Math.min(MAX_LEVEL, (s.level||0)+1);
+  }
+  SRS[k]=s; save(); return s;
+}
+function statRec(i, ok){
+  const k=srsKey(i); const s=STATS[k]||{seen:0,correct:0,wrong:0,last:null}; s.seen++; ok?s.correct++:s.wrong++; s.last=today(); STATS[k]=s; save(); updateHeader();
+}
+function updateHeader(){
+  $("statSeen").textContent = `문항 ${Q.length}`;
+  let c=0,w=0; Object.values(STATS).forEach(s=>{ c+=s.correct||0; w+=s.wrong||0; });
+  $("statScore").textContent = `정답 ${c} · 오답 ${w}`;
+}
+function weightOf(i){
+  const k=srsKey(i); const st=STATS[k]||{correct:0}; const base=Math.max(0.05, 1/Math.pow(1+(st.correct||0), 0.7));
+  const s=srsFor(i); const due = (!s || !s.due) ? true : (s.due <= today());
+  return (due?1:0.5) * base;
+}
+function pick(){
+  if(Q.length===0) return -1;
+  const w = Q.map((_,i)=>weightOf(i)); const sum=w.reduce((a,b)=>a+b,0)||1; let r=Math.random()*sum;
+  for(let i=0;i<Q.length;i++){ r-=w[i]; if(r<=0) return i; }
+  return Q.length-1;
+}
+
+async function fetchJSON(url){
+  const res = await fetch(url, {cache:"no-store"});
+  if(!res.ok) throw new Error(url+" HTTP "+res.status);
+  return await res.json();
+}
+
+async function loadSelected(){
+  $("startBtn").disabled = true;
+  $("loadBtn").disabled = true;
+  try{
+    const sel = [...document.querySelectorAll(".set:checked")].map(e=>e.value);
+    let data=[], srcinfo=[];
+    if(sel.length===0){
+      throw new Error("하나 이상 선택하세요.");
+    }
+    for(const u of sel){
+      try{
+        const dj = await fetchJSON(u);
+        const labeled = dj.map(it => ({...it, __src:u}));
+        data = data.concat(labeled);
+        srcinfo.push(`${u}(${dj.length})`);
+      }catch(e){
+        console.warn("불러오기 실패:", u, e);
+      }
+    }
+    if(data.length===0) throw new Error("불러오기 실패 — 로컬 파일 선택을 사용해 보세요.");
+    Q = data;
+    SRC = srcinfo;
+    SOURCE = "mix";
+    updateHeader();
+    $("startBtn").disabled = (Q.length===0);
+    showList();
+    alert(`불러오기 완료: ${Q.length}문항 · ${srcinfo.join(", ")}`);
+  }catch(e){
+    alert("불러오기 실패: "+e.message + "\\n파일 선택으로 시도합니다.");
+    $("fileInput").classList.remove("hidden");
+    $("fileInput").click();
+  }finally{
+    $("loadBtn").disabled = false;
+  }
+}
+
+$("loadBtn").onclick=loadSelected;
+$("fileInput").addEventListener("change", async ()=>{
+  $("startBtn").disabled = true;
+  try{
+    const files = $("fileInput").files;
+    if(!files || files.length===0) return;
+    let merged=[]; let srcinfo=[];
+    for(const f of files){
+      const txt = await f.text();
+      try{ const arr=JSON.parse(txt); merged = merged.concat(arr.map(it=>({...it,__src:f.name}))); srcinfo.push(`${f.name}(${arr.length})`); }catch(_){}
+    }
+    if(merged.length===0) throw new Error("선택한 파일에서 문항을 찾을 수 없습니다.");
+    Q = merged; SRC = srcinfo; SOURCE="mix-local"; updateHeader(); $("startBtn").disabled=false; showList();
+    alert(`불러오기 완료(로컬): ${Q.length}문항 · ${srcinfo.join(", ")}`);
+  }catch(e){
+    alert("로컬 불러오기 실패: "+e.message);
+  }
+});
+
+/* List */
+const quiz = $("quiz"), list = $("list"), items=$("items");
+function show(el){ [quiz,list].forEach(s=>s.classList.add("hidden")); if(el) el.classList.remove("hidden"); }
+function showList(){ show(list); items.innerHTML=""; Q.forEach((_,i)=> items.appendChild(renderItem(i)) ); }
+function renderItem(i){
+  const it=Q[i], s=srsFor(i), st=STATS[srsKey(i)]||{seen:0,correct:0,wrong:0};
+  const div=document.createElement("div");
+  const src = it.__src || "";
+  div.innerHTML = `<strong>${i+1}. ${it.stem}</strong><br>
+  <small class="muted">${it.ref||'-'} · Lvl:${s.level||0} · Due:${s.due} · seen:${st.seen||0}/ok:${st.correct||0}/ng:${st.wrong||0} · <span class="code">${src}</span></small><br>
+  <small class="muted">${it.choices.map((c,idx)=> (idx+1)+'. '+c).join(' · ')}</small>`;
+  return div;
+}
+
+/* Quiz flow */
+let running=false, current=-1, answered=false, waitingNext=false, revealMode=false;
+const stem=$("stem"), choices=$("choices"), result=$("result"), refv=$("refView"), level=$("levelInfo"), srcpill=$("sourceInfo");
+
+function start(){ if(Q.length===0) return; running=true; $("startBtn").classList.add("hidden"); $("stopBtn").classList.remove("hidden"); show(quiz); next(); }
+function stop(){ running=false; $("stopBtn").classList.add("hidden"); $("startBtn").classList.remove("hidden"); show(null); }
+
+function sampleChoices(it){
+  const n = it.choices.length;
+  if(n<=4){
+    const idxs = [...Array(n).keys()];
+    for(let i=idxs.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [idxs[i],idxs[j]]=[idxs[j],idxs[i]]; }
+    return idxs;
+  }
+  const wrongs = [...Array(n).keys()].filter(i=>i!==it.answer);
+  for(let i=wrongs.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [wrongs[i],wrongs[j]]=[wrongs[j],wrongs[i]]; }
+  const pickWrongs = wrongs.slice(0,3);
+  const combo = [it.answer, ...pickWrongs];
+  for(let i=combo.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [combo[i],combo[j]]=[combo[j],combo[i]]; }
+  return combo;
+}
+
+function next(){
+  if(!running) return;
+  answered=false; waitingNext=false; revealMode=false;
+  $("nextBtn").classList.add("hidden"); $("revealBtn").classList.remove("hidden");
+  result.textContent="";
+  current = pick(); if(current<0) return;
+  const it=Q[current];
+  stem.textContent = it.stem;
+  refv.textContent = it.ref || "—";
+  const s = srsFor(current);
+  level.textContent = `레벨 ${s.level||0}`;
+  srcpill.textContent = (it.__src || "").replace(/_with_ref\.json$/,"");
+  srcpill.title = it.note || "";
+
+  const idxs = sampleChoices(it);
+  choices.innerHTML="";
+  idxs.slice(0,4).forEach((idx,visOrder)=>{
+    const div=document.createElement("div"); div.className="choice"; div.setAttribute("data-idx", idx);
+    div.innerHTML=`<strong>${visOrder+1}.</strong> ${it.choices[idx]}`;
+    div.onclick=()=>select(idx);
+    choices.appendChild(div);
+  });
+}
+
+function select(chIdx){
+  if(answered && !revealMode) return;
+  const it=Q[current], ok = (chIdx===it.answer);
+  [...choices.children].forEach((div)=>{
+    const idx = Number(div.getAttribute("data-idx"));
+    if(idx===it.answer) div.classList.add("correct");
+    if(idx===chIdx && idx!==it.answer) div.classList.add("wrong");
+    div.style.pointerEvents="none";
+  });
+  if(!revealMode){
+    answered=true;
+    statRec(current, ok);
+    const s=srsUpdate(current, ok? (document.hidden?4:5) : (2));
+    const add = it.note ? `<br><small class="muted">${it.note}</small>` : "";
+    result.innerHTML = ok ? `<span class="ok">정답! (다음 복습일: ${s.due})</span>${add}` :
+      `<span class="err">오답! 정답은 <strong>${it.choices[it.answer]}</strong></span>${add}`;
+  }
+  $("nextBtn").classList.remove("hidden"); waitingNext=true;
+}
+
+function reveal(){
+  if(answered) return;
+  revealMode=true; select(Q[current].answer);
+  result.innerHTML = `<span class="warn">정답 확인 모드</span>` + (Q[current].note?`<br><small class="muted">${Q[current].note}</small>`:"");
+}
+
+document.addEventListener("keydown", (e)=>{
+  if(e.key==="Enter"){
+    if(waitingNext){ e.preventDefault(); waitingNext=false; next(); return; }
+  }
+  if(/^[1-4]$/.test(e.key)){
+    const n=Number(e.key)-1;
+    const div = choices.children[n];
+    if(div){ const idx=Number(div.getAttribute("data-idx")); select(idx); }
+  }
+});
+
+/* Bindings */
+$("startBtn").onclick=start;
+$("stopBtn").onclick=stop;
+$("listBtn").onclick=showList;
+$("nextBtn").onclick=()=>{ if(waitingNext){ waitingNext=false; next(); } };
+$("revealBtn").onclick=reveal;
+$("exportBtn").onclick=()=>{
+  const blob=new Blob([JSON.stringify({srs:SRS,stats:STATS,source:SOURCE,srcfiles:SRC},null,2)],{type:"application/json"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="mcq_progress_backup.json"; a.click();
+};
+$("resetBtn").onclick=()=>{
+  if(!confirm("진행/통계를 초기화할까요?")) return;
+  localStorage.removeItem(KEY_SRS); localStorage.removeItem(KEY_STATS);
+  SRS={}; STATS={}; updateHeader(); alert("초기화 완료");
+};
+</script>
+</body>
+</html>
